@@ -6,7 +6,9 @@ import sys
 
 
 def get_grammar():
-    pass_fail = Enum(Byte, fail=1, pass_=2)
+    pass_fail = Enum(Byte, pass_=1, fail=2)
+    record_type = Enum(Byte, test=0x01, end=0xaa)
+
     test_result = Struct(
         start = Const(b'\xfd'),
         name = String(16),
@@ -15,34 +17,38 @@ def get_grammar():
         flag = Flag,
     )
     test_record = Struct(
-        record_type = Const(b'\x01'),
-        unknown = pass_fail,
-        id_ = String(80),
+        success = pass_fail,
+        id_ = String(16),
+        zeros = Const(b'\x00')[64],
         venue = String(16),
         location = String(16),
-        unknown4 = String(7),
+        unknown1 = String(5),
+        seven = Const(b'\xe0\x07'),
         user = String(16),
         comments = String(128),
-        unknown5 = String(1),
-        date1 = Int8ul,
+        unknown2 = String(1),
+        period1 = Int8ul,
         test_type = String(30),
-        date2 = Int8ul,
-        unknown6 = String(15),
-        unknown7 = RawCopy(PascalString(Int8ul)),
+        period2 = Int8ul,
+        unknown3 = String(15),
+        unknown4 = RawCopy(PascalString(Int8ul)),
         start_results = Const(b'\xfe'),
         results = RawCopy(test_result[:]),
-        unknown8 = RawCopy(Byte[this._.length - this.unknown7.length - this.results.length - 314]),
+        unknown5 = Byte[this._.length - this.unknown4.length - this.results.length - 314],
     )
     final_record = Struct(
-        record_type = Const(b'\xaa'),
     )
-    record = RawCopy(Struct (
+    record = Struct (
         start = Const(b'\xff\x54'),
         length = Int16ul,
         checksum = Int16ul,
         zeros = Const(b'\x00\x00'),
-        data = RawCopy(Select(test_record, final_record)),
-    ))
+        record_type = record_type,
+        data = Embedded(Switch(this.record_type, {
+            'test': test_record,
+            'end': final_record,
+        })),
+    )
     pat_file = Struct(
         unknown1 = Const(b'\x54\x2a\x00\x28\x06\x00\x00\x55'),
         machine = String(20),

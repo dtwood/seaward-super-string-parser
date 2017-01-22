@@ -50,13 +50,14 @@ def get_grammar():
         length=Int16ul,
         checksum=Int16ul,
         zeros=Const(b'\x00\x00'),
-        record_type=record_type,
+        record_type=RawCopy(record_type),
         data=RawCopy(Switch(this.record_type.value, {
             'machine_info': machine_info_record,
             'test': test_record,
             'end': final_record,
         })),
         end=Const(b'\xff'),
+        checksum_computed=Computed(sum_(this.record_type.data + this.data.data + this.end) & 0xffff)
     )
     pat_file = Struct(
         records=record[:],

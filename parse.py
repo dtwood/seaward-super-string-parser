@@ -71,7 +71,13 @@ def main():
 
     with open(sys.argv[1], 'rb') as f:
         result = grammar.parse(f.read())
-        print(result)
+
+    assert(result.records[-1].record_type.value == 'end')
+    for record in result.records:
+        assert(record.checksum == record.checksum_computed or
+               record.checksum == record.checksum_computed - 1)
+
+    print(result)
 
 if __name__ == '__main__':
     main()

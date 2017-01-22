@@ -1,14 +1,17 @@
 #! /usr/bin/env python3
 
 from construct import *
-import construct
 import sys
 
 
 def get_grammar():
     pass_fail = Enum(Byte, pass_=1, fail=2)
-    record_type = Enum(Byte, test=0x01, end=0xaa)
+    record_type = Enum(Byte, test=0x01, end=0xaa, machine_info=0x55)
 
+    machine_info_record = Struct(
+        machine=String(20),
+        serial=String(20),
+    )
     test_result = Struct(
         start=Const(b'\xfd'),
         name=String(16),
@@ -39,22 +42,20 @@ def get_grammar():
     final_record = Struct(
     )
     record = Struct(
-        start=Const(b'\xff\x54'),
+        start=Const(b'\x54'),
         length=Int16ul,
         checksum=Int16ul,
         zeros=Const(b'\x00\x00'),
         record_type=record_type,
-        data=Embedded(Switch(this.record_type, {
+        data=RawCopy(Switch(this.record_type.value, {
+            'machine_info': machine_info_record,
             'test': test_record,
             'end': final_record,
         })),
+        end=Const(b'\xff'),
     )
     pat_file = Struct(
-        unknown1=Const(b'\x54\x2a\x00\x28\x06\x00\x00\x55'),
-        machine=String(20),
-        serial=String(20),
         records=record[:],
-        eof=Const(b'\xff'),
     )
 
     return pat_file

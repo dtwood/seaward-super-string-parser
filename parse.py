@@ -33,7 +33,7 @@ def get_grammar():
         year=Int16ul,
         user=String(16),
         comments=String(128),
-        unknown2=String(1),
+        unknown2=Const(b'\x02'),
         period1=Int8ul,
         test_type=String(30),
         period2=Int8ul,
@@ -41,7 +41,7 @@ def get_grammar():
         unknown4=RawCopy(PascalString(Int8ul)),
         start_results=Const(b'\xfe'),
         results=RawCopy(test_result[:]),
-        unknown5=Byte[this._.length - this.unknown4.length - this.results.length - 314],
+        unknown5=Bytes(this._.length - this.unknown4.length - this.results.length - 314),
     )
     final_record = Struct(
     )

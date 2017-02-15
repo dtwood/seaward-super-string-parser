@@ -16,7 +16,7 @@ def get_grammar():
         start=Const(b'\xfd'),
         name=String(16),
         units=String(16),
-        value=Int16ub,
+        value=Int16ul,
         flag=Flag,
     )
     test_record = Struct(
@@ -34,9 +34,9 @@ def get_grammar():
         user=String(16),
         comments=String(128),
         unknown2=Const(b'\x02'),
-        period1=Int8ul,
+        full_retest_period=Int8ul,
         test_type=String(30),
-        period2=Int8ul,
+        visual_retest_period=Int8ul,
         unknown3=String(15),
         unknown4=RawCopy(PascalString(Int8ul)),
         start_results=Const(b'\xfe'),
@@ -77,7 +77,34 @@ def main():
         assert(record.checksum == record.checksum_computed or
                record.checksum == record.checksum_computed - 1)
 
-    print(result)
+    import pprint
+    import datetime
+
+    filtered = [record for record in result.records if record.record_type.data == b'\x01']
+    output = [{
+        'id': record.data.value.id_.decode("utf-8"),
+        'venue': record.data.value.venue.decode("utf-8"),
+        'location': record.data.value.location.decode("utf-8"),
+        'visual_retest_period': record.data.value.visual_retest_period,
+        'full_retest_period': record.data.value.full_retest_period,
+        'test_time':  datetime.datetime(
+            year=record.data.value.year,
+            month=record.data.value.month,
+            day=record.data.value.day,
+            hour=record.data.value.hour,
+            minute=record.data.value.minute,
+            second=record.data.value.second,
+        ),
+        'test_type': record.data.value.test_type.decode('utf-8'),
+        'comments': record.data.value.comments.decode('utf-8'),
+        'subtests': [
+            {
+                'test_type': 'historical',
+                'result': 'pass' if record.data.value.success == 'pass_' else 'fail',
+            }
+        ],
+    } for record in filtered if record.data.value.id_ == b'dt6']
+    pprint.pprint(output)
 
 if __name__ == '__main__':
     main()

@@ -138,7 +138,8 @@ def get_gar_contents(container):
         # Followed by a file contents, variable length depending on compression
         compressed_length, = struct.unpack('>L', container.read(4))
         contents = container.read(compressed_length)
-        header_length, mangling_method, truncated_timestamp, original_length = struct.unpack('>HHLL', contents[:12])
+        header_length, mangling_method, truncated_timestamp, original_length =\
+            struct.unpack('>HHLL', contents[:12])
         assert(header_length == 12)
         assert(mangling_method == 1)
 

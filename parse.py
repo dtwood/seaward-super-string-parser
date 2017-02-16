@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 from construct import *
+import codecs
 import datetime
 import sys
 import gar
@@ -125,8 +126,8 @@ test_record = Struct(
     full_retest_period=Int8ul,
     test_type=String(30),
     visual_retest_period=Int8ul,
-    unknown2=String(15),
-    unknown3=PascalString(Int8ul),
+    almost_always_nulls=String(15),
+    test_config=PascalString(Int8ul),
     start_results=Const(b'\xfe'),
     visual_test_results=visual_test_result[:],
     physical_test_results=physical_test_result[:],
@@ -170,11 +171,11 @@ def get_results(data):
                 'id': record.data.value.id_.decode("utf-8"),
                 'venue': record.data.value.venue.decode("utf-8"),
                 'location': record.data.value.location.decode("utf-8"),
-                'visual_retest_period':
-                    datetime.timedelta(days=record.data.value.visual_retest_period * 30),
-                'full_retest_period':
-                    datetime.timedelta(days=record.data.value.full_retest_period * 30),
-                'test_time':  datetime.datetime(
+                'visual_retest_period': datetime.timedelta(
+                    days=record.data.value.visual_retest_period * 30),
+                'full_retest_period': datetime.timedelta(
+                    days=record.data.value.full_retest_period * 30),
+                'test_time': datetime.datetime(
                     year=record.data.value.year,
                     month=record.data.value.month,
                     day=record.data.value.day,
@@ -195,7 +196,12 @@ def get_results(data):
                         for result in record.data.value.physical_test_results
                     },
                 },
-                'result': 'pass' if record.data.value.success == 'pass_' else 'fail',
+                'result':
+                'pass' if record.data.value.success == 'pass_' else 'fail',
+                'test_config': codecs.encode(
+                    record.data.value.test_config,
+                    encoding='hex_codec'
+                )
             }
             for record in result.records
             if record.record_type.value == 'test'

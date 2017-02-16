@@ -23,6 +23,24 @@ class CustomFloat16(Adapter):
             'units': self.units,
         }
 
+@singleton
+class ResultFlags(Adapter):
+    def __init__(self, *args, **kwargs):
+        f = BitStruct(
+            'unknown1' / Flag,
+            'unknown2' / Flag,
+            'greater_than' / Flag,
+            'less_than' / Flag,
+            'unknown3' / Flag,
+            'unknown4' / Flag,
+            'unknown5' / Flag,
+            'pass' / Flag,
+        )
+        super().__init__(f, *args, **kwargs)
+
+    def _decode(self, obj, context):
+        return obj
+
 
 pass_fail = Enum(Byte, pass_=1, fail=2)
 record_type = Enum(Byte, test=0x01, end=0xaa, machine_info=0x55)
@@ -34,50 +52,50 @@ physical_test_type = Enum(
     substitute_leakage=0x83,
     polarity=0x91,
     mains_voltage=0x92,
-    earth_leakage=0x96,
+    touch_or_leakage_current=0x96,
     rcd=0x9a,
     string=0xfd,
 )
 
 earth_resistance = Struct(
     resistance=CustomFloat16('ohm'),
-    result=Byte,
+    result=ResultFlags,
 )
 iec = Struct(
     resistance=CustomFloat16('ohm'),
-    result=Byte,
+    result=ResultFlags,
 )
 insulation = Struct(
     voltage=CustomFloat16('volt'),
     resistance=CustomFloat16('megaohm'),
-    result=Byte,
+    result=ResultFlags,
 )
 substitute_leakage = Struct(
     current=CustomFloat16('milliamp'),
-    result=Byte,
+    result=ResultFlags,
 )
 polarity = Struct(
-    result=Byte,
+    result=ResultFlags,
 )
 mains_voltage = Struct(
     voltage=CustomFloat16('ohm'),
-    result=Byte,
+    result=ResultFlags,
 )
-earth_leakage = Struct(
-    unknown1=CustomFloat16('???'),
-    unknown2=CustomFloat16('???'),
-    unknown3=CustomFloat16('???'),
-    result=Byte,
+touch_or_leakage_current = Struct(
+    load_current=CustomFloat16('milliamp'),
+    unknown=Bytes(2),
+    leakage_current=CustomFloat16('milliamp'),
+    result=ResultFlags,
 )
 rcd = Struct(
-    unknown1=CustomFloat16('???'),
-    unknown2=CustomFloat16('???'),
-    unknown3=CustomFloat16('???'),
-    result=Byte,
+    test_current=CustomFloat16('milliamp'),
+    cycle_angle=CustomFloat16('degree'),
+    trip_time=CustomFloat16('millisecond'),
+    result=ResultFlags,
 )
 string = Struct(
     value=String(34),
-    result=Byte,
+    result=ResultFlags,
 )
 
 physical_test_result = Struct(
@@ -91,7 +109,7 @@ physical_test_result = Struct(
             'substitute_leakage': substitute_leakage,
             'polarity': polarity,
             'mains_voltage': mains_voltage,
-            'earth_leakage': earth_leakage,
+            'touch_or_leakage_current': touch_or_leakage_current,
             'rcd': rcd,
             'string': string,
         }
@@ -147,9 +165,10 @@ record = Struct(
         'end': final_record,
     })),
     end=Const(b'\xff'),
-    checksum_computed=Computed(sum_(
-        this.record_type.data + this.data.data + this.end) &
-                               0xffff)
+    checksum_computed=Computed(
+        sum_(this.record_type.data + this.data.data + this.end) &
+        0xffff
+    )
 )
 pat_file = Struct(
     records=record[:],
@@ -186,17 +205,21 @@ def get_results(data):
                 ),
                 'test_type': record.data.value.test_type.decode('utf-8'),
                 'comments': record.data.value.comments.decode('utf-8'),
-                'subtests': {
-                    'visual': {
+                'subtests': [
+                    {
+                        'test_type': 'visual',
                         'result':
                             'fail' if record.data.value.success == 'fail' and
                             len(record.data.value.physical_test_results) == 0
                             else 'pass',
-                    }, **{
-                        result.ty: dict(result.value)
-                        for result in record.data.value.physical_test_results
-                    },
-                },
+                    }
+                ] + [
+                    {
+                        'test_type': result.ty,
+                        **result.value
+                    }
+                    for result in record.data.value.physical_test_results
+                ],
                 'result':
                 'pass' if record.data.value.success == 'pass_' else 'fail',
                 'test_config': codecs.encode(

@@ -4,15 +4,97 @@ from construct import *
 import sys
 
 
+class CustomFloat16(Adapter):
+    def __init__(self, units, *args, **kwargs):
+        self.units = units
+        super().__init__(Bytes(2), *args, **kwargs)
+
+    def _decode(self, obj, context):
+        return {
+            'value': (obj[0] & 0x3fff) * (0.1 ** ((obj[1] & 0xc000) >> 14)),
+            'units': self.units,
+        }
+
+
 def get_grammar():
     pass_fail = Enum(Byte, pass_=1, fail=2)
     record_type = Enum(Byte, test=0x01, end=0xaa, machine_info=0x55)
+
+    mains_voltage = Struct(
+        voltage=CustomFloat16('ohm'),
+        result=Byte,
+    )
+    earth_leakage = Struct(
+        unknown1=CustomFloat16('???'),
+        unknown2=CustomFloat16('???'),
+        unknown3=CustomFloat16('???'),
+        result=Byte,
+    )
+    rcd = Struct(
+        unknown1=CustomFloat16('???'),
+        unknown2=CustomFloat16('???'),
+        unknown3=CustomFloat16('???'),
+        result=Byte,
+    )
+    earth_resistance = Struct(
+        resistance=CustomFloat16('ohm'),
+        result=Byte,
+    )
+    iec = Struct(
+        resistance=CustomFloat16('ohm'),
+        result=Byte,
+    )
+    insulation = Struct(
+        voltage=CustomFloat16('volt'),
+        resistance=CustomFloat16('megaohm'),
+        result=Byte,
+    )
+    polarity = Struct(
+        result=Byte,
+    )
+    substitute_leakage = Struct(
+        unknown=CustomFloat16('???'),
+        result=Byte,
+    )
+    string = Struct(
+        value=String(34),
+        result=Byte,
+    )
+    physical_test_type = Enum(
+        Byte,
+        earth_resistance=0x11,
+        iec=0x16,
+        insulation=0x20,
+        polarity=0x91,
+        mains_voltage=0x92,
+        earth_leakage=0x96,
+        rcd=0x9a,
+        substitute_leakage=0x83,
+        string=0xfd,
+    )
+    physical_test_result = Struct(
+        ty=physical_test_type,
+        value=Switch(
+            this.ty,
+            {
+                'earth_resistance': earth_resistance,
+                'iec': iec,
+                'insulation': insulation,
+                'polarity': polarity,
+                'mains_voltage': mains_voltage,
+                'earth_leakage': earth_leakage,
+                'rcd': rcd,
+                'substitute_leakage': substitute_leakage,
+                'string': string,
+            }
+        ),
+    )
 
     machine_info_record = Struct(
         machine=String(20),
         serial=String(20),
     )
-    test_result = Struct(
+    visual_test_result = Struct(
         start=Const(b'\xfd'),
         name=String(16),
         units=String(16),
@@ -33,15 +115,15 @@ def get_grammar():
         year=Int16ul,
         user=String(16),
         comments=String(128),
-        unknown2=Const(b'\x02'),
+        unknown1=Const(b'\x02'),
         full_retest_period=Int8ul,
         test_type=String(30),
         visual_retest_period=Int8ul,
-        unknown3=String(15),
-        unknown4=RawCopy(PascalString(Int8ul)),
+        unknown2=String(15),
+        unknown3=PascalString(Int8ul),
         start_results=Const(b'\xfe'),
-        results=RawCopy(test_result[:]),
-        unknown5=Bytes(this._.length - this.unknown4.length - this.results.length - 314),
+        visual_test_results=visual_test_result[:],
+        physical_test_results=physical_test_result[:],
     )
     final_record = Struct(
     )
@@ -80,30 +162,42 @@ def main():
     import pprint
     import datetime
 
-    filtered = [record for record in result.records if record.record_type.data == b'\x01']
-    output = [{
-        'id': record.data.value.id_.decode("utf-8"),
-        'venue': record.data.value.venue.decode("utf-8"),
-        'location': record.data.value.location.decode("utf-8"),
-        'visual_retest_period': record.data.value.visual_retest_period,
-        'full_retest_period': record.data.value.full_retest_period,
-        'test_time':  datetime.datetime(
-            year=record.data.value.year,
-            month=record.data.value.month,
-            day=record.data.value.day,
-            hour=record.data.value.hour,
-            minute=record.data.value.minute,
-            second=record.data.value.second,
-        ),
-        'test_type': record.data.value.test_type.decode('utf-8'),
-        'comments': record.data.value.comments.decode('utf-8'),
-        'subtests': [
-            {
-                'test_type': 'historical',
-                'result': 'pass' if record.data.value.success == 'pass_' else 'fail',
-            }
-        ],
-    } for record in filtered if record.data.value.id_ == b'dt6']
+    output = [
+        {
+            'id': record.data.value.id_.decode("utf-8"),
+            'venue': record.data.value.venue.decode("utf-8"),
+            'location': record.data.value.location.decode("utf-8"),
+            'visual_retest_period':
+                datetime.timedelta(days=record.data.value.visual_retest_period*30),
+            'full_retest_period':
+                datetime.timedelta(days=record.data.value.full_retest_period*30),
+            'test_time':  datetime.datetime(
+                year=record.data.value.year,
+                month=record.data.value.month,
+                day=record.data.value.day,
+                hour=record.data.value.hour,
+                minute=record.data.value.minute,
+                second=record.data.value.second,
+            ),
+            'test_type': record.data.value.test_type.decode('utf-8'),
+            'comments': record.data.value.comments.decode('utf-8'),
+            'subtests': {**{
+                'visual': {
+                    'result':
+                        'fail' if record.data.value.success == 'fail' and
+                        len(record.data.value.physical_test_results) == 0
+                        else 'pass',
+                }, **{
+                    result.ty: dict(result.value)
+                    for result in record.data.value.physical_test_results
+                }},
+            },
+            'result': 'pass' if record.data.value.success == 'pass_' else 'fail',
+        }
+        for record in result.records
+        if record.record_type.value == 'test'
+    ]
+
     pprint.pprint(output)
 
 if __name__ == '__main__':

@@ -31,14 +31,34 @@ physical_test_type = Enum(
     earth_resistance=0x11,
     iec=0x16,
     insulation=0x20,
+    substitute_leakage=0x83,
     polarity=0x91,
     mains_voltage=0x92,
     earth_leakage=0x96,
     rcd=0x9a,
-    substitute_leakage=0x83,
     string=0xfd,
 )
 
+earth_resistance = Struct(
+    resistance=CustomFloat16('ohm'),
+    result=Byte,
+)
+iec = Struct(
+    resistance=CustomFloat16('ohm'),
+    result=Byte,
+)
+insulation = Struct(
+    voltage=CustomFloat16('volt'),
+    resistance=CustomFloat16('megaohm'),
+    result=Byte,
+)
+substitute_leakage = Struct(
+    current=CustomFloat16('milliamp'),
+    result=Byte,
+)
+polarity = Struct(
+    result=Byte,
+)
 mains_voltage = Struct(
     voltage=CustomFloat16('ohm'),
     result=Byte,
@@ -55,30 +75,11 @@ rcd = Struct(
     unknown3=CustomFloat16('???'),
     result=Byte,
 )
-earth_resistance = Struct(
-    resistance=CustomFloat16('ohm'),
-    result=Byte,
-)
-iec = Struct(
-    resistance=CustomFloat16('ohm'),
-    result=Byte,
-)
-insulation = Struct(
-    voltage=CustomFloat16('volt'),
-    resistance=CustomFloat16('megaohm'),
-    result=Byte,
-)
-polarity = Struct(
-    result=Byte,
-)
-substitute_leakage = Struct(
-    current=CustomFloat16('milliamp'),
-    result=Byte,
-)
 string = Struct(
     value=String(34),
     result=Byte,
 )
+
 physical_test_result = Struct(
     ty=physical_test_type,
     value=Switch(
@@ -87,11 +88,11 @@ physical_test_result = Struct(
             'earth_resistance': earth_resistance,
             'iec': iec,
             'insulation': insulation,
+            'substitute_leakage': substitute_leakage,
             'polarity': polarity,
             'mains_voltage': mains_voltage,
             'earth_leakage': earth_leakage,
             'rcd': rcd,
-            'substitute_leakage': substitute_leakage,
             'string': string,
         }
     ),

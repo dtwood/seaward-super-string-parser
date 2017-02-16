@@ -4,13 +4,6 @@
 # Hereby placed in the public domain in the hopes of improving
 # electrical safety and interoperability.
 #
-# Example: gar.py <input1.gar> [input2.gar] ...
-#
-# This would extract the results to 'input1_TestResults.sss', and any
-# other JPEG attachments to 'input1_...jpg'.  Note that the JPEGs are
-# low-resolution (320x240---at least the ones I've seen); this is not
-# a problem with with extraction!
-
 # == GAR ==
 # GAR files are a container format used for importing/exporting
 # filesets to and from some Seaward PAT testing machines ("Apollo"
@@ -151,15 +144,14 @@ def get_gar_contents(container):
         qcompress_prefix = deobfuscate_string(pnr, contents[12:16])
         zlib_stream = deobfuscate_string(pnr, contents[16:])
 
-        # We can check the lengths match up, and if so try to uncompress with zlib
+        # We can check the lengths match up,
+        # and if so try to uncompress with zlib
         expected_length, = struct.unpack(">L", qcompress_prefix)
         assert(original_length == expected_length)
-        original = zlib.decompress(zlib_stream)
 
-        # Assuming it all went well we can inform the user where their file will be saved
+        original = zlib.decompress(zlib_stream)
         assert(original_length == expected_length == len(original))
 
-        # And then write out the original uncompressed file to its appropriate name
         output[filename] = original
 
     return output

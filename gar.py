@@ -68,7 +68,6 @@ defacto integrity checking in the GAR file-format.
 
 import io
 import struct
-import sys
 import zlib
 
 
@@ -78,6 +77,7 @@ def marsaglia_xorshift_128(x=123456789, y=362436069, z=521288629, w=88675123):
     https://en.wikipedia.org/wiki/Xorshift
     http://stackoverflow.com/questions/4508043/on-xorshift-random-number-generator-algorithm
     '''
+
     while True:
         t = (x ^ (x << 11)) & 0xffffffff
         x, y, z = y, z, w
@@ -91,14 +91,16 @@ def deobfuscate_string(pnr, obfuscated, operation=int.__sub__):
     during extraction, and added to byte values on insertion.  When calling
     deobfuscate_string() the whole string is processed.
     '''
-    return b''.join(
-        bytes([operation(c, next(pnr)) & 0xff])
-        for c in obfuscated
+
+    return bytes(
+        operation(c, r) & 0xff
+        for (c, r) in zip(obfuscated, pnr)
     )
 
 
 def get_gar_contents(container):
     '''The main parse and extract from Seaward '.GAR' container starts here'''
+
     if not hasattr(container, 'read'):
         container = io.BytesIO(container)
 

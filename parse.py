@@ -1,10 +1,11 @@
 #! /usr/bin/env python3
 
 from construct import *
+
 import codecs
 import datetime
-import sys
 import gar
+import sys
 
 
 def trace(x):
@@ -15,6 +16,7 @@ def trace(x):
 class CustomFloat16(Adapter):
     def __init__(self, units, *args, **kwargs):
         self.units = units
+
         f = ByteSwapped(Bitwise(Struct(
             exponent=BitsInteger(2),
             significand=BitsInteger(14),
@@ -28,23 +30,16 @@ class CustomFloat16(Adapter):
         }
 
 
-@singleton
-class ResultFlags(Adapter):
-    def __init__(self, *args, **kwargs):
-        f = Bitwise(Struct(
-            unknown1=Flag,
-            unknown2=Flag,
-            greater_than=Flag,
-            less_than=Flag,
-            unknown3=Flag,
-            unknown4=Flag,
-            unknown5=Flag,
-            pass_=Flag,
-        ))
-        super().__init__(f, *args, **kwargs)
-
-    def _decode(self, obj, context):
-        return obj
+result_flags = Bitwise(Struct(
+    unknown1=Flag,
+    unknown2=Flag,
+    greater_than=Flag,
+    less_than=Flag,
+    unknown3=Flag,
+    unknown4=Flag,
+    fail=Flag,
+    pass_=Flag,
+))
 
 
 physical_test_type = Enum(
@@ -62,43 +57,43 @@ physical_test_type = Enum(
 
 earth_resistance = Struct(
     resistance=CustomFloat16('ohm'),
-    result=ResultFlags,
+    result=result_flags,
 )
 iec = Struct(
     resistance=CustomFloat16('ohm'),
-    result=ResultFlags,
+    result=result_flags,
 )
 insulation = Struct(
     voltage=CustomFloat16('volt'),
     resistance=CustomFloat16('megaohm'),
-    result=ResultFlags,
+    result=result_flags,
 )
 substitute_leakage = Struct(
     current=CustomFloat16('milliamp'),
-    result=ResultFlags,
+    result=result_flags,
 )
 polarity = Struct(
-    result=ResultFlags,
+    result=result_flags,
 )
 mains_voltage = Struct(
     voltage=CustomFloat16('volt'),
-    result=ResultFlags,
+    result=result_flags,
 )
 touch_or_leakage_current = Struct(
     load_current=CustomFloat16('milliamp'),
     unknown=Bytes(2),
     leakage_current=CustomFloat16('milliamp'),
-    result=ResultFlags,
+    result=result_flags,
 )
 rcd = Struct(
     test_current=CustomFloat16('milliamp'),
     cycle_angle=CustomFloat16('degree'),
     trip_time=CustomFloat16('millisecond'),
-    result=ResultFlags,
+    result=result_flags,
 )
 string = Struct(
     value=String(34),
-    result=ResultFlags,
+    result=result_flags,
 )
 
 physical_test_result = Struct(
@@ -132,7 +127,7 @@ machine_info_record = Struct(
     serial=String(20),
 )
 test_record = Struct(
-    success=ResultFlags,
+    result=result_flags,
     id_=String(16),
     zeros=Const(b'\x00')[64],
     venue=String(16),
@@ -215,8 +210,11 @@ def get_results(data):
                         'test_type': 'visual',
                         'result': {
                             'pass_':
-                            record.data.value.success.pass_ or
-                            len(record.data.value.physical_test_results) != 0
+                            record.data.value.result.pass_ or
+                            len(record.data.value.physical_test_results) != 0,
+                            'fail':
+                            record.data.value.result.fail and
+                            len(record.data.value.physical_test_results) == 0
                         }
                     }
                 ] + [
@@ -226,7 +224,7 @@ def get_results(data):
                     }
                     for result in record.data.value.physical_test_results
                 ],
-                'result': record.data.value.success.pass_,
+                'result': record.data.value.result,
                 'test_config': codecs.encode(
                     record.data.value.test_config,
                     encoding='hex_codec'

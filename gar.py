@@ -119,8 +119,8 @@ subfile_contents = Struct(
         subfile_contents_contents,
         encoder=lambda d, ctx: deobfuscate_string(ctx._pnr, d, int.__add__),
         decoder=lambda d, ctx: deobfuscate_string(ctx._pnr, d),
-        encoderunit=1,
-        decoderunit=1,
+        encoderunit=None,
+        decoderunit=None,
         sizecomputer=lambda x: x,
     )),
 )

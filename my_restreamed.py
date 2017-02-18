@@ -7,18 +7,24 @@ class MyRestreamedBytesIO(construct.RestreamedBytesIO):
             srw = 0
             rdata = b''
             while True:
-                data = self.substream.read(self.decoderunit)
+                if self.decoderunit is None:
+                    data = self.substream.read()
+                else:
+                    data = self.substream.read(self.decoderunit)
                 if data is None or len(data) == 0:
                     break
                 srw += len(data)
                 rdata += self.decoder(data, self.context)
             self.sincereadwritten += srw
             return rdata
+        elif count < 0:
+            raise ValueError("count cannot be negative")
         else:
-            if count < 0:
-                raise ValueError("count cannot be negative")
             while len(self.rbuffer) < count:
-                data = self.substream.read(self.decoderunit)
+                if self.decoderunit is None:
+                    data = self.substream.read(count)
+                else:
+                    data = self.substream.read(self.decoderunit)
                 if data is None or len(data) == 0:
                     raise IOError(
                         "Restreamed cannot satisfy read request of %d bytes" %

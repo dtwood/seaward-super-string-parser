@@ -101,40 +101,24 @@ def deobfuscate_string(pnr, obfuscated, operation=int.__sub__):
     )
 
 
-def obfuscate_string(pnr, raw, operation=int.__add__):
-    return deobfuscate_string(pnr, raw, operation)
-
-
 subfile_contents_contents = Struct(
     expected_length=Int32ub,
     contents=Compressed(GreedyBytes, 'zlib'),
 )
-
-
-PNR = marsaglia_xorshift_128(
-    x=this.truncated_timestamp,
-    y=this.original_length
-)
-
-
-def update_pnr(x, y):
-    global PNR
-    PNR = marsaglia_xorshift_128(x, y)
-
 
 subfile_contents = Struct(
     header_length=Const(b'\x00\x0c'),
     mangling_method=Const(b'\x00\x01'),
     truncated_timestamp=Int32ub,
     original_length=Int32ub,
-    _pnr=Computed(lambda obj: update_pnr(
+    _pnr=Computed(lambda obj: marsaglia_xorshift_128(
         x=obj.truncated_timestamp,
         y=obj.original_length
     )),
-    _deobfuscated=Embedded(MyRestreamed(
+    _=Embedded(MyRestreamed(
         subfile_contents_contents,
-        encoder=lambda data: obfuscate_string(PNR, data),
-        decoder=lambda data: deobfuscate_string(PNR, data),
+        encoder=lambda d, ctx: deobfuscate_string(ctx._pnr, d, int.__add__),
+        decoder=lambda d, ctx: deobfuscate_string(ctx._pnr, d),
         encoderunit=1,
         decoderunit=1,
         sizecomputer=lambda x: x,
@@ -144,7 +128,7 @@ subfile_contents = Struct(
 subfile = Struct(
     filename=PascalString(Int32ub, encoding='utf-8'),
     compressed_length=Peek(Int32ub),
-    _contents=Embedded(Prefixed(Int32ub, subfile_contents)),
+    _=Embedded(Prefixed(Int32ub, subfile_contents)),
 )
 
 gar_file = Struct(

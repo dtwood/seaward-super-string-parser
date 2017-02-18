@@ -11,7 +11,7 @@ class MyRestreamedBytesIO(construct.RestreamedBytesIO):
                 if data is None or len(data) == 0:
                     break
                 srw += len(data)
-                rdata += self.decoder(data)
+                rdata += self.decoder(data, self.context)
             self.sincereadwritten += srw
             return rdata
         else:
@@ -24,10 +24,20 @@ class MyRestreamedBytesIO(construct.RestreamedBytesIO):
                         "Restreamed cannot satisfy read request of %d bytes" %
                         count
                     )
-                self.rbuffer += self.decoder(data)
+                self.rbuffer += self.decoder(data, self.context)
             data, self.rbuffer = self.rbuffer[:count], self.rbuffer[count:]
             self.sincereadwritten += count
             return data
+
+    def write(self, data):
+        self.wbuffer += data
+        datalen = len(data)
+        while len(self.wbuffer) >= self.encoderunit:
+            data, self.wbuffer = self.wbuffer[:self.encoderunit], \
+                self.wbuffer[self.encoderunit:]
+            self.substream.write(self.encoder(data, self.context))
+        self.sincereadwritten += datalen
+        return datalen
 
 
 class MyRestreamed(construct.Restreamed):
@@ -37,3 +47,17 @@ class MyRestreamed(construct.Restreamed):
                          sizecomputer)
         self.stream2 = MyRestreamedBytesIO(None, encoder, encoderunit, decoder,
                                            decoderunit)
+
+    def _parse(self, stream, context, path):
+        self.stream2.substream = stream
+        self.stream2.context = context
+        obj = self.subcon._parse(self.stream2, context, path)
+        self.stream2.close()
+        return obj
+
+    def _build(self, obj, stream, context, path):
+        self.stream2.substream = stream
+        self.stream2.context = context
+        buildret = self.subcon._build(obj, self.stream2, context, path)
+        self.stream2.close()
+        return buildret

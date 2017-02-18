@@ -128,10 +128,10 @@ machine_info_record = Struct(
 )
 test_record = Struct(
     result=result_flags,
-    id_=String(16),
+    id_=String(16, encoding='utf-8'),
     zeros=Const(b'\x00')[64],
-    venue=String(16),
-    location=String(16),
+    venue=String(16, encoding='utf-8'),
+    location=String(16, encoding='utf-8'),
     hour=Int8ul,
     minute=Int8ul,
     second=Int8ul,
@@ -139,10 +139,10 @@ test_record = Struct(
     month=Int8ul,
     year=Int16ul,
     user=String(16),
-    comments=String(128),
+    comments=String(128, encoding='utf-8'),
     unknown1=Const(b'\x02'),
     full_retest_period=Int8ul,
-    test_type=String(30),
+    test_type=String(30, encoding='utf-8'),
     visual_retest_period=Int8ul,
     almost_always_nulls=String(15),
     test_config=PascalString(Int8ul),
@@ -188,9 +188,9 @@ def get_results(data):
     return {
         'results': [
             {
-                'id': record.data.value.id_.decode("utf-8"),
-                'venue': record.data.value.venue.decode("utf-8"),
-                'location': record.data.value.location.decode("utf-8"),
+                'id': record.data.value.id_,
+                'venue': record.data.value.venue,
+                'location': record.data.value.location,
                 'visual_retest_period': datetime.timedelta(
                     days=record.data.value.visual_retest_period * 30),
                 'full_retest_period': datetime.timedelta(
@@ -203,8 +203,8 @@ def get_results(data):
                     minute=record.data.value.minute,
                     second=record.data.value.second,
                 ),
-                'test_type': record.data.value.test_type.decode('utf-8'),
-                'comments': record.data.value.comments.decode('utf-8'),
+                'test_type': record.data.value.test_type,
+                'comments': record.data.value.comments,
                 'subtests': [
                     {
                         'test_type': 'visual',

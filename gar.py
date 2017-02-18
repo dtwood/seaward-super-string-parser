@@ -66,6 +66,9 @@ Aside from failing to decode/validate, the zlib checksum provides the only
 defacto integrity checking in the GAR file-format.
 '''
 
+from construct import *
+from my_restreamed import MyRestreamed
+
 import io
 import struct
 import zlib
@@ -98,56 +101,61 @@ def deobfuscate_string(pnr, obfuscated, operation=int.__sub__):
     )
 
 
+def obfuscate_string(pnr, raw, operation=int.__add__):
+    return deobfuscate_string(pnr, raw, operation)
+
+
+subfile_contents_contents = Struct(
+    expected_length=Int32ub,
+    contents=Compressed(GreedyBytes, 'zlib'),
+)
+
+
+PNR = marsaglia_xorshift_128(
+    x=this.truncated_timestamp,
+    y=this.original_length
+)
+
+
+def update_pnr(x, y):
+    global PNR
+    PNR = marsaglia_xorshift_128(x, y)
+
+
+subfile_contents = Struct(
+    header_length=Const(b'\x00\x0c'),
+    mangling_method=Const(b'\x00\x01'),
+    truncated_timestamp=Int32ub,
+    original_length=Int32ub,
+    _pnr=Computed(lambda obj: update_pnr(
+        x=obj.truncated_timestamp,
+        y=obj.original_length
+    )),
+    _deobfuscated=Embedded(MyRestreamed(
+        subfile_contents_contents,
+        encoder=lambda data: obfuscate_string(PNR, data),
+        decoder=lambda data: deobfuscate_string(PNR, data),
+        encoderunit=1,
+        decoderunit=1,
+        sizecomputer=lambda x: x,
+    )),
+)
+
+subfile = Struct(
+    filename=PascalString(Int32ub, encoding='utf-8'),
+    compressed_length=Peek(Int32ub),
+    _contents=Embedded(Prefixed(Int32ub, subfile_contents)),
+)
+
+gar_file = Struct(
+    magic=Const(b'\xca\xbc\xab'),
+    version=Const(b'\x01'),
+    files=subfile[1],
+)
+
+
 def get_gar_contents(container):
-    '''The main parse and extract from Seaward '.GAR' container starts here'''
-
-    if not hasattr(container, 'read'):
-        container = io.BytesIO(container)
-
-    # The GAR container's magic number is 0xcabcab
-    container_header = struct.unpack('>L', container.read(4))[0]
-    container_magic = container_header >> 8
-    assert(container_magic == 0xcabcab)
-    container_version = container_header & 0xff
-    assert(container_version == 1)
-
-    output = {}
-
-    # The container has no end-of-file marker,
-    # it ends when there are no more records
-    while True:
-        s = container.read(4)
-        if len(s) < 4:
-            break
-
-        # The record headers start with a variable length (filename) string
-        filename_length, = struct.unpack('>L', s)
-        filename = container.read(filename_length).decode('utf-8')
-
-        # Followed by a file contents, variable length depending on compression
-        compressed_length, = struct.unpack('>L', container.read(4))
-        contents = container.read(compressed_length)
-        header_length, mangling_method, truncated_timestamp, original_length =\
-            struct.unpack('>HHLL', contents[:12])
-        assert(header_length == 12)
-        assert(mangling_method == 1)
-
-        # The file contents are obfuscated with a Marsaglia xorshift PNR
-        pnr = marsaglia_xorshift_128(x=truncated_timestamp, y=original_length)
-
-        # There is also a (second) obfuscated copy of the original file length
-        # and then the (compressed) file contents.
-        qcompress_prefix = deobfuscate_string(pnr, contents[12:16])
-        zlib_stream = deobfuscate_string(pnr, contents[16:])
-
-        # We can check the lengths match up,
-        # and if so try to uncompress with zlib
-        expected_length, = struct.unpack(">L", qcompress_prefix)
-        assert(original_length == expected_length)
-
-        original = zlib.decompress(zlib_stream)
-        assert(original_length == expected_length == len(original))
-
-        output[filename] = original
-
-    return output
+    return {
+        f.filename: f.contents
+        for f in gar_file.parse(container).files
+    }

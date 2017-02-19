@@ -125,6 +125,7 @@ record_type = Enum(Byte, test=0x01, end=0xaa, machine_info=0x55)
 machine_info_record = Struct(
     'machine' / String(20),
     'serial' / String(20),
+    Const(b'\xff'),
 )
 test_record = Struct(
     'result' / result_flags,
@@ -145,12 +146,14 @@ test_record = Struct(
     'test_type' / String(30, encoding='utf-8'),
     'visual_retest_period' / Int8ul,
     String(15),
-    'test_config' / PascalString(Int8ul),
+    'test_config' / Hex(PascalString(Int8ul)),
     Const(b'\xfe'),
     'visual_test_results' / visual_test_result[:],
     'physical_test_results' / physical_test_result[:],
+    Const(b'\xff'),
 )
 final_record = Struct(
+    Const(b'\xff'),
 )
 record = Struct(
     'start' / Const(b'\x54'),
@@ -165,15 +168,17 @@ record = Struct(
             'end': final_record,
         }
     )),
-    'end' / Const(b'\xff'),
-    'checksum_computed' / Computed(
-        sum_(this.record_type.data + this.data.data + this.end) &
-        0xffff
+    Check(
+        (sum_(this.record_type.data + this.data.data) & 0xffff ==
+            this.checksum) |
+        (sum_(this.record_type.data + this.data.data) & 0xffff ==
+            this.checksum + 1)
     ),
 )
 
 pat_file = Struct(
     'records' / record[:],
+    ExprValidator(Peek(Int8ul), lambda obj, ctx: obj is None)
 )
 
 
@@ -181,11 +186,6 @@ def get_results(data):
     extracted_gar = gar.get_gar_contents(data)
     result = pat_file.parse(extracted_gar['TestResults.sss'])
     del extracted_gar['TestResults.sss']
-
-    assert(result.records[-1].record_type.value == 'end')
-    for record in result.records:
-        assert(record.checksum == record.checksum_computed or
-               record.checksum == record.checksum_computed - 1)
 
     return {
         'results': [
@@ -227,10 +227,7 @@ def get_results(data):
                     for result in record.data.value.physical_test_results
                 ],
                 'result': record.data.value.result,
-                'test_config': codecs.encode(
-                    record.data.value.test_config,
-                    encoding='hex_codec'
-                )
+                'test_config': record.data.value.test_config,
             }
             for record in result.records
             if record.record_type.value == 'test'

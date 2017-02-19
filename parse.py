@@ -31,14 +31,14 @@ class CustomFloat16(Adapter):
 
 
 result_flags = Bitwise(Struct(
-    unknown1=Flag,
-    unknown2=Flag,
-    greater_than=Flag,
-    less_than=Flag,
-    unknown3=Flag,
-    unknown4=Flag,
-    fail=Flag,
-    pass_=Flag,
+    'unknown1' / Flag,
+    'unknown2' / Flag,
+    'greater_than' / Flag,
+    'less_than' / Flag,
+    'unknown3' / Flag,
+    'unknown4' / Flag,
+    'fail' / Flag,
+    'pass' / Flag,
 ))
 
 
@@ -56,49 +56,49 @@ physical_test_type = Enum(
 )
 
 earth_resistance = Struct(
-    resistance=CustomFloat16('ohm'),
-    result=result_flags,
+    'resistance' / CustomFloat16('ohm'),
+    'result' / result_flags,
 )
 iec = Struct(
-    resistance=CustomFloat16('ohm'),
-    result=result_flags,
+    'resistance' / CustomFloat16('ohm'),
+    'result' / result_flags,
 )
 insulation = Struct(
-    voltage=CustomFloat16('volt'),
-    resistance=CustomFloat16('megaohm'),
-    result=result_flags,
+    'voltage' / CustomFloat16('volt'),
+    'resistance' / CustomFloat16('megaohm'),
+    'result' / result_flags,
 )
 substitute_leakage = Struct(
-    current=CustomFloat16('milliamp'),
-    result=result_flags,
+    'current' / CustomFloat16('milliamp'),
+    'result' / result_flags,
 )
 polarity = Struct(
-    result=result_flags,
+    'result' / result_flags,
 )
 mains_voltage = Struct(
-    voltage=CustomFloat16('volt'),
-    result=result_flags,
+    'voltage' / CustomFloat16('volt'),
+    'result' / result_flags,
 )
 touch_or_leakage_current = Struct(
-    load_current=CustomFloat16('milliamp'),
-    unknown=Bytes(2),
-    leakage_current=CustomFloat16('milliamp'),
-    result=result_flags,
+    'load_current' / CustomFloat16('milliamp'),
+    'unknown' / Bytes(2),
+    'leakage_current' / CustomFloat16('milliamp'),
+    'result' / result_flags,
 )
 rcd = Struct(
-    test_current=CustomFloat16('milliamp'),
-    cycle_angle=CustomFloat16('degree'),
-    trip_time=CustomFloat16('millisecond'),
-    result=result_flags,
+    'test_current' / CustomFloat16('milliamp'),
+    'cycle_angle' / CustomFloat16('degree'),
+    'trip_time' / CustomFloat16('millisecond'),
+    'result' / result_flags,
 )
 string = Struct(
-    value=String(34),
-    result=result_flags,
+    'value' / String(34),
+    'result' / result_flags,
 )
 
 physical_test_result = Struct(
-    ty=physical_test_type,
-    value=Switch(
+    'ty' / physical_test_type,
+    'value' / Switch(
         this.ty,
         {
             'earth_resistance': earth_resistance,
@@ -114,64 +114,66 @@ physical_test_result = Struct(
     ),
 )
 visual_test_result = Struct(
-    start=Const(b'\xfd'),
-    name=String(16),
-    units=String(16),
-    value=Int16ul,
-    flag=Flag,
+    'start' / Const(b'\xfd'),
+    'name' / String(16),
+    'units' / String(16),
+    'value' / Int16ul,
+    'flag' / Flag,
 )
 
 record_type = Enum(Byte, test=0x01, end=0xaa, machine_info=0x55)
 machine_info_record = Struct(
-    machine=String(20),
-    serial=String(20),
+    'machine' / String(20),
+    'serial' / String(20),
 )
 test_record = Struct(
-    result=result_flags,
-    id_=String(16, encoding='utf-8'),
-    zeros=Const(b'\x00')[64],
-    venue=String(16, encoding='utf-8'),
-    location=String(16, encoding='utf-8'),
-    hour=Int8ul,
-    minute=Int8ul,
-    second=Int8ul,
-    day=Int8ul,
-    month=Int8ul,
-    year=Int16ul,
-    user=String(16),
-    comments=String(128, encoding='utf-8'),
-    unknown1=Const(b'\x02'),
-    full_retest_period=Int8ul,
-    test_type=String(30, encoding='utf-8'),
-    visual_retest_period=Int8ul,
-    almost_always_nulls=String(15),
-    test_config=PascalString(Int8ul),
-    start_results=Const(b'\xfe'),
-    visual_test_results=visual_test_result[:],
-    physical_test_results=physical_test_result[:],
+    'result' / result_flags,
+    'id' / String(16, encoding='utf-8'),
+    Const(b'\x00')[64],
+    'venue' / String(16, encoding='utf-8'),
+    'location' / String(16, encoding='utf-8'),
+    'hour' / Int8ul,
+    'minute' / Int8ul,
+    'second' / Int8ul,
+    'day' / Int8ul,
+    'month' / Int8ul,
+    'year' / Int16ul,
+    'user' / String(16, encoding='utf-8'),
+    'comments' / String(128, encoding='utf-8'),
+    Const(b'\x02'),
+    'full_retest_period' / Int8ul,
+    'test_type' / String(30, encoding='utf-8'),
+    'visual_retest_period' / Int8ul,
+    String(15),
+    'test_config' / PascalString(Int8ul),
+    Const(b'\xfe'),
+    'visual_test_results' / visual_test_result[:],
+    'physical_test_results' / physical_test_result[:],
 )
 final_record = Struct(
 )
 record = Struct(
-    start=Const(b'\x54'),
-    length=Int16ul,
-    checksum=Int16ul,
-    zeros=Const(b'\x00\x00'),
-    record_type=RawCopy(record_type),
-    data=RawCopy(Switch(this.record_type.value, {
-        'machine_info': machine_info_record,
-        'test': test_record,
-        'end': final_record,
-    })),
-    end=Const(b'\xff'),
-    checksum_computed=Computed(
+    'start' / Const(b'\x54'),
+    'length' / Int16ul,
+    'checksum' / Int16ul,
+    Const(b'\x00\x00'),
+    'record_type' / RawCopy(record_type),
+    'data' / RawCopy(Switch(
+        this.record_type.value, {
+            'machine_info': machine_info_record,
+            'test': test_record,
+            'end': final_record,
+        }
+    )),
+    'end' / Const(b'\xff'),
+    'checksum_computed' / Computed(
         sum_(this.record_type.data + this.data.data + this.end) &
         0xffff
-    )
+    ),
 )
 
 pat_file = Struct(
-    records=record[:],
+    'records' / record[:],
 )
 
 
@@ -188,7 +190,7 @@ def get_results(data):
     return {
         'results': [
             {
-                'id': record.data.value.id_,
+                'id': record.data.value['id'],
                 'venue': record.data.value.venue,
                 'location': record.data.value.location,
                 'visual_retest_period': datetime.timedelta(
@@ -209,8 +211,8 @@ def get_results(data):
                     {
                         'test_type': 'visual',
                         'result': {
-                            'pass_':
-                            record.data.value.result.pass_ or
+                            'pass':
+                            record.data.value.result['pass'] or
                             len(record.data.value.physical_test_results) != 0,
                             'fail':
                             record.data.value.result.fail and

@@ -18,16 +18,46 @@ class CustomFloat16(Adapter):
         self.units = units
 
         f = ByteSwapped(Bitwise(Struct(
-            exponent=BitsInteger(2),
-            significand=BitsInteger(14),
+            'exponent' / BitsInteger(2),
+            'significand' / BitsInteger(14),
         )))
         super().__init__(f, *args, **kwargs)
 
     def _decode(self, obj, context):
         return {
-            'value': obj['significand'] * (0.1 ** obj['exponent']),
+            'value': obj.significand * (0.1 ** obj.exponent),
             'units': self.units,
         }
+
+
+class MonthDelta(Adapter):
+    def __init__(self, month_type, *args, **kwargs):
+        super().__init__(month_type, *args, **kwargs)
+
+    def _decode(self, obj, context):
+        return datetime.timedelta(days=obj * 30)
+
+
+class DateTime(Adapter):
+    def __init__(self, *args, **kwargs):
+        f = Struct(
+            *[
+                name / ty
+                for (name, ty)
+                in kwargs.items()
+            ]
+        )
+        super().__init__(f, *args)
+
+    def _decode(self, obj, context):
+        return datetime.datetime(
+            year=obj.year,
+            month=obj.month,
+            day=obj.day,
+            hour=obj.hour,
+            minute=obj.minute,
+            second=obj.second,
+        )
 
 
 result_flags = Bitwise(Struct(
@@ -97,9 +127,9 @@ string = Struct(
 )
 
 physical_test_result = Struct(
-    'ty' / physical_test_type,
-    'value' / Switch(
-        this.ty,
+    'test_type' / physical_test_type,
+    Embedded(Switch(
+        this.test_type,
         {
             'earth_resistance': earth_resistance,
             'iec': iec,
@@ -111,7 +141,7 @@ physical_test_result = Struct(
             'rcd': rcd,
             'string': string,
         }
-    ),
+    )),
 )
 visual_test_result = Struct(
     'start' / Const(b'\xfd'),
@@ -133,18 +163,20 @@ test_record = Struct(
     Const(b'\x00')[64],
     'venue' / String(16, encoding='utf-8'),
     'location' / String(16, encoding='utf-8'),
-    'hour' / Int8ul,
-    'minute' / Int8ul,
-    'second' / Int8ul,
-    'day' / Int8ul,
-    'month' / Int8ul,
-    'year' / Int16ul,
+    'test_time' / DateTime(
+        hour=Int8ul,
+        minute=Int8ul,
+        second=Int8ul,
+        day=Int8ul,
+        month=Int8ul,
+        year=Int16ul,
+    ),
     'user' / String(16, encoding='utf-8'),
     'comments' / String(128, encoding='utf-8'),
     Const(b'\x02'),
-    'full_retest_period' / Int8ul,
+    'full_retest_period' / MonthDelta(Int8ul),
     'test_type' / String(30, encoding='utf-8'),
-    'visual_retest_period' / Int8ul,
+    'visual_retest_period' / MonthDelta(Int8ul),
     String(15),
     'test_config' / Hex(PascalString(Int8ul)),
     Const(b'\xfe'),
@@ -193,18 +225,9 @@ def get_results(data):
                 'id': record.data.value['id'],
                 'venue': record.data.value.venue,
                 'location': record.data.value.location,
-                'visual_retest_period': datetime.timedelta(
-                    days=record.data.value.visual_retest_period * 30),
-                'full_retest_period': datetime.timedelta(
-                    days=record.data.value.full_retest_period * 30),
-                'test_time': datetime.datetime(
-                    year=record.data.value.year,
-                    month=record.data.value.month,
-                    day=record.data.value.day,
-                    hour=record.data.value.hour,
-                    minute=record.data.value.minute,
-                    second=record.data.value.second,
-                ),
+                'visual_retest_period': record.data.value.visual_retest_period,
+                'full_retest_period': record.data.value.full_retest_period,
+                'test_time': record.data.value.test_time,
                 'test_type': record.data.value.test_type,
                 'comments': record.data.value.comments,
                 'subtests': [
@@ -219,13 +242,7 @@ def get_results(data):
                             len(record.data.value.physical_test_results) == 0
                         }
                     }
-                ] + [
-                    {
-                        'test_type': result.ty,
-                        **result.value
-                    }
-                    for result in record.data.value.physical_test_results
-                ],
+                ] + record.data.value.physical_test_results,
                 'result': record.data.value.result,
                 'test_config': record.data.value.test_config,
             }

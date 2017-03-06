@@ -116,7 +116,7 @@ mains_voltage = Struct(
 )
 touch_or_leakage_current = Struct(
     'load_current' / CustomFloat16('milliamp'),
-    'unknown' / Bytes(2),
+    'unknown' / CustomFloat16('unknown'),
     'leakage_current' / CustomFloat16('milliamp'),
     'result' / result_flags,
 )

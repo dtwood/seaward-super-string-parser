@@ -76,6 +76,7 @@ physical_test_type = Enum(
     Byte,
     earth_resistance=0x11,
     iec=0x16,
+    point_to_point=0x18,
     insulation=0x20,
     substitute_leakage=0x83,
     polarity=0x91,
@@ -90,6 +91,10 @@ earth_resistance = Struct(
     'result' / result_flags,
 )
 iec = Struct(
+    'resistance' / CustomFloat16('ohm'),
+    'result' / result_flags,
+)
+point_to_point = Struct(
     'resistance' / CustomFloat16('ohm'),
     'result' / result_flags,
 )
@@ -133,6 +138,7 @@ physical_test_result = Struct(
         {
             'earth_resistance': earth_resistance,
             'iec': iec,
+            'point_to_point': point_to_point,
             'insulation': insulation,
             'substitute_leakage': substitute_leakage,
             'polarity': polarity,
